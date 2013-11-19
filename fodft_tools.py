@@ -1,3 +1,4 @@
+#!/usr/bin/python
 import os
 import sys
 from copy import deepcopy
@@ -53,26 +54,20 @@ def write_fo(atoms, step):
                 sc_accuracy_etot=1E-6,
                 sc_iter_limit=100,
                 fo_dft=str_fo_dft,
-                #fo_options=step,
-                #fo_embedding=".false.",
+                default_initial_moment=0,
                 relativistic="none",
                 species_dir="/data/schober/code/fhiaims_develop/fhiaims_supporting_work/species_defaults/" + basis_type)
 
     atoms.set_calculator(calc)
-
-    #fo_emb = raw_input("Use fo_embedding? [y/n, default: n] ")
-    #if fo_emb == "":
-        #fo_emb = "n"
 
     if str_fo_dft is "fragment":
         atoms.calc.set(fo_options=step)
         if fo_emb is "y":
             atoms.calc.set(fo_embedding=".true.")
 
-    #if fo_emb is "y":
-        #atoms.calc.set(fo_embedding=".true.")
     if step is "fo":
         atoms.calc.set(fo_orbitals="x x 1 1 hole")
+        atoms.calc.set(packed_matrix_format="none")
 
     atoms.calc.set(charge=charges[step])
     #atoms.calc.set(default_initial_moment=abs(charges[step])

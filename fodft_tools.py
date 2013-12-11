@@ -68,21 +68,29 @@ def write_fo(atoms, step):
     if step is "fo":
         atoms.calc.set(fo_orbitals="x x 1 1 hole")
         atoms.calc.set(packed_matrix_format="none")
-
     atoms.calc.set(charge=charges[step])
     #atoms.calc.set(default_initial_moment=abs(charges[step])
     
 
-    atoms.calc.write_control(atoms, os.path.join(step, "control.in"))
-    atoms.calc.write_species(atoms, os.path.join(step, "control.in"))
-                
+    if step is not "fo":
+        atoms.calc.write_control(atoms, os.path.join(step, "control.in"))
+        atoms.calc.write_species(atoms, os.path.join(step, "control.in"))
+        if fo_emb is "y":
+            # need to change manually!
+            atoms.calc.write_species(atoms, os.path.join(step, "control.in"))
+
+    elif step is "fo":
+        atoms.calc.write_control(atoms, "control.in")
+        atoms.calc.write_species(atoms, "control.in")
 
 ############################################################################
 ###################################### CODE ################################
 ############################################################################
 
-dimer_file = sys.argv[1]
+#dimer_file = sys.argv[1]
 
+# debug:
+dimer_file = "two_thiophene.xyz"
 try:
     basis_type = sys.argv[2]
 except:
@@ -121,12 +129,18 @@ folders = ["frag1", "frag2", "fo"]
 for folder in folders:
     os.mkdir(folder)
 
-write("frag1/geometry.in", frag1, format="aims")
-write("frag2/geometry.in", frag2, format="aims")
+if fo_emb == "y":
+    write("frag1/geometry.in", frag1, format="aims")
+    write("frag1/geometry.in", frag2, format="aims")
+    write("frag2/geometry.in", frag1, format="aims")
+    write("frag2/geometry.in", frag2, format="aims")
+else:
+    write("frag1/geometry.in", frag1, format="aims")
+    write("frag2/geometry.in", frag2, format="aims")
 
 concat_dimer = frag1 + frag2
 
-write("fo/geometry.in", concat_dimer, format="aims")
+write("geometry.in", concat_dimer, format="aims")
 
 # create dictionary of atom objects
 atom_obj = {"frag1": frag1,

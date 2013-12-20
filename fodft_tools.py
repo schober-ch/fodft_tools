@@ -130,6 +130,7 @@ class fo_aims(fodft):
                     }
            # add a calculator
         #self.update_calculators()
+
     def create_fragments(self):
         fodft.create_fragments(self)
         self.update_calculators()
@@ -159,6 +160,20 @@ class fo_aims(fodft):
                          charge=self.charges['fo'],
                          fo_orbitals="{0} {1} {2} {3} {4}".format(self.frontiers[0]/2, self.frontiers[1]/2, self.fo_range[0], self.fo_range[1], self.fo_type),
                          packed_matrix_format="none")
+
+    def set_cube_files(self):
+        """ Method to create cube file input for each fragment """
+        
+        # its done for both fragments each, might be able to do this nicer..    
+        states = range(self.frontiers[0]/2, self.frontiers[0]/2 + self.fo_range[0])
+        plots = ["eigenstate {0}".format(x) for x in states]
+        cube1 = AimsCube(plots)
+        self.frag1.calc.cubes = cube1
+
+        states = range(self.frontiers[1]/2, self.frontiers[1]/2 + self.fo_range[1])
+        plots = ["eigenstate {0}".format(x) for x in states]
+        cube2 = AimsCube(plots)
+        self.frag2.calc.cubes = cube2
 
     def write_inputs(self):
 
@@ -248,6 +263,81 @@ class fo_aims(fodft):
                     control.write(line)
                     
         control.close()
+
+# also copied from ASE aims calculator, modified for fodft.. 
+class AimsCube:
+    "Object to ensure the output of cube files, can be attached to Aims object"
+    def __init__(self, plots=None):
+        """parameters:
+        origin, edges, points = same as in the FHI-aims output
+        plots: what to print, same names as in FHI-aims """
+
+        self.name = 'AimsCube'
+        #self.origin = origin
+        #self.edges = edges
+        #self.points = points
+        self.plots = plots 
+
+    def ncubes(self):
+        """returns the number of cube files to output """
+        if self.plots:
+            number = len(self.plots)
+        else:
+            number = 0
+        return number
+
+    def set(self, **kwargs):
+        """ set any of the parameters ... """
+        # NOT IMPLEMENTED AT THE MOMENT!
+
+    #def move_to_base_name(self, basename):
+        #""" when output tracking is on or the base namem is not standard,
+        #this routine will rename add the base to the cube file output for
+        #easier tracking """
+        #for plot in self.plots:
+            #found = False
+            #cube = plot.split()
+            #if (cube[0] == 'total_density' or
+                #cube[0] == 'spin_density' or
+                #cube[0] == 'delta_density'):
+                #found = True
+                #old_name = cube[0] + '.cube'
+                #new_name = basename + '.' + old_name
+            #if cube[0] == 'eigenstate' or cube[0] == 'eigenstate_density':
+                #found = True
+                #state = int(cube[1])
+                #s_state = cube[1]
+                #for i in [10, 100, 1000, 10000]:
+                    #if state < i:
+                        #s_state = '0' + s_state
+                #old_name = cube[0] + '_' + s_state + '_spin_1.cube'
+                #new_name = basename + '.' + old_name
+            #if found:
+                #os.system('mv ' + old_name + ' ' + new_name)
+#
+    def add_plot(self, name):
+        """ in case you forgot one ... """
+        self.plots += [name]
+
+    def write(self, file):
+        """ write the necessary output to the already opened control.in """
+        file.write('output cube ' + self.plots[0] + '\n')
+        file.write('output cube ' + self.plots[0] + '\n')
+        file.write('cube spinstate 2\n')
+        #file.write('   cube origin ')
+        #for ival in self.origin:
+            #file.write(str(ival) + ' ')
+        #file.write('\n')
+        #for i in range(3):
+            #file.write('   cube edge ' + str(self.points[i]) + ' ')
+            #for ival in self.edges[i]:
+                #file.write(str(ival) + ' ')
+            #file.write('\n')
+        if self.ncubes() > 1:
+            for i in range(self.ncubes() - 1):
+                file.write('output cube ' + self.plots[i + 1] + '\n')
+                file.write('output cube ' + self.plots[i + 1] + '\n')
+                file.write('cube spinstate 2\n')
 
 class fo_cpmd(fodft):
     """ Wrapper for old cpmd io/calculator. Need to integrate into this later on..."""

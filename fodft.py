@@ -11,6 +11,7 @@ parser.add_argument('filename', help='Geometry file with the dimer')#, dest='fil
 parser.add_argument('-e, --extension', help='Format of the geometry file, if not .xyz', dest='fformat', metavar='FORMAT', default='xyz')
 parser.add_argument('-d, --dir', help='-d = subfoldername, will create project files there', dest='dir', default='./')
 parser.add_argument('-a, --all', help='Create inputs for basic and polarized fodft', dest='all', action="store_true")
+parser.add_argument('-c, --cubes', help="Automatically adds cube output command for guessed states", dest="cubes", action="store_true")
 
 # additional, optinal arguments for the fodft-class
 #parser.add_argument('-
@@ -69,6 +70,9 @@ system.fo_type = arg_dict_values['fo_type'][1]
 print("Got all information, now create the fragments!")
 system.create_fragments()
 
+if arguments.cubes is True:
+    system.set_cube_files()
+    
 if arguments.all is True:
     print("Now creating input files for basic fo_dft...")
 

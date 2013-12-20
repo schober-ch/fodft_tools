@@ -1,60 +1,90 @@
 #!/usr/bin/python
+from copy import deepcopy
+from fodft_tools import *
+import argparse
+import os
+import sys, traceback
 
-import sys
-from fodft_tools_oo import *
+parser = argparse.ArgumentParser(description="Get parameters for fodft")
 
-filename = sys.argv[1]
-try:
-    fformat = sys.argv[2]
-except:
-    fformat = "xyz"
+parser.add_argument('filename', help='Geometry file with the dimer')#, dest='filename')
+parser.add_argument('-e, --extension', help='Format of the geometry file, if not .xyz', dest='fformat', metavar='FORMAT', default='xyz')
+parser.add_argument('-d, --dir', help='-d = subfoldername, will create project files there', dest='dir', default='./')
+parser.add_argument('-a, --all', help='Create inputs for basic and polarized fodft', dest='all', action="store_true")
 
-system = fo_aims(filename)
+# additional, optinal arguments for the fodft-class
+#parser.add_argument('-
 
+arguments = parser.parse_args()
+
+filename = arguments.filename
+fformat = arguments.fformat
+system = fo_aims(filename, fformat)
+
+arg_dict = {
+            "xc" :        ["Which XC functional (Default: blyp): ", "blyp"],
+            "charge_in" :    ["Charges on [frag1], [frag2] (Default: +1 0]): ", "+1 0"],
+            "embedding" : ["Use embedding? [y/n] (Default: no): ", ".false."],
+            "species" :     ["Specify basis set, available options: \n\n {0} \n\n(Default: tight). Please choose: ".format(system.avail_species.keys()), "tight"],
+            "fo_type" :    ["FO_Type, hole or elec (Default: hole): ", "hole"],
+            }
+
+if arguments.dir == "./":
+    print("Creating files in current working directory ({0})".format(os.getcwd()))
+else:
+    try:
+        os.mkdir(arguments.dir)
+        os.chdir(arguments.dir)
+        print("Creating files in {0}!".format(arguments.dir))
+    except:
+        print("Error when creating folder {0}:".format(arguments.dir))
+        #traceback.print_exc(file=sys.stdout)
+        raise
+print("Creating basic and embedded input: {0}".format(arguments.all))
 # get params for fodft
+arg_dict_values = deepcopy(arg_dict)
 
-xc = raw_input("Which XC functional (Default: blyp):" )
-if xc is "":
-    system.xc = "blyp"
-else:
-    system.xc = xc
+# First, get user input
+for item in arg_dict:
+    arg_dict_values[item][1] = raw_input("{0}".format(arg_dict[item][0]))
 
-charge =  raw_input("Charges on [frag1], [frag2] (Input-example: +1 0]): ")
-if charge is "":
-    system.charge_in = [+1, 0]
-else:
-    cc = charge.strip("[]").split()
-    system.charge_in = cc 
+# Fill up with defaults were no user input exists
+for item in arg_dict_values:
+    if arg_dict_values[item][1] is "":
+        arg_dict_values[item][1] = arg_dict[item][1]
 
-embedding = raw_input("Use embedding? [.true. / .false.] Default no: ")
-if embedding is "":
-    system.embedding = ".false."
-elif embedding is ".true." or "y":
-    system.embedding = ".true."
+# Special post processing of inputs
+if arg_dict_values['embedding'][1] == "y":
+    arg_dict_values['embedding'][1] = ".true."
+elif arg_dict_values['embedding'][1] == "n":
+    arg_dict_values['embedding'][1] = ".false."
 
-print("Specify basis set, following are possible:")
-print(system.avail_species.keys())
-basis = raw_input("Default tight. Choice: ")
-
-if basis is "":
-    system.species = "tight"
-else:
-    system.species = basis
-
-#print(system.charge_in)
-#print(system.species)
-#print(system.embedding)
-#print(system.charges)
-fotype = raw_input("FO_Type, hole or elec (default: hole)?: ")
-if fotype is "":
-    system.fo_type = "hole"
-else:
-    system.fo_type = fotype
+# Set the values. 
+system.aims_params['xc'] = arg_dict_values['xc'][1]
+system.charge_in = arg_dict_values['charge_in'][1].strip("[]").split()
+system.embedding = arg_dict_values['embedding'][1]
+system.species = arg_dict_values['species'][1]
+system.fo_type = arg_dict_values['fo_type'][1]
 
 print("Got all information, now create the fragments!")
 system.create_fragments()
 
-print("Now creating the input files!")
-system.write_inputs()
+if arguments.all is True:
+    print("Now creating input files for basic fo_dft...")
 
+    os.mkdir("basic")
+    os.mkdir("embedded")
+
+    cwd = os.getcwd()
+    os.chdir("basic")
+    #print("Now creating the input files!")
+    system.write_inputs()
+    os.chdir(cwd)
+    os.chdir("embedded")
+    print("Now creating input files for embedded fo_dft...")
+    system.embedding = ".true."
+    system.write_inputs()
+else:
+    print("Now creating the input files!")
+    system.write_inputs()
 print("Done.")

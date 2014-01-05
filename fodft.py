@@ -4,14 +4,16 @@ from fodft_tools import *
 import argparse
 import os
 import sys, traceback
+from ase import Atoms
 
 parser = argparse.ArgumentParser(description="Get parameters for fodft")
 
-parser.add_argument('filename', help='Geometry file with the dimer')#, dest='filename')
+parser.add_argument('filename', nargs='+', help='Geometry file with the dimer or a list(blob)')#, dest='filename')
 parser.add_argument('-e, --extension', help='Format of the geometry file, if not .xyz', dest='fformat', metavar='FORMAT', default='xyz')
 parser.add_argument('-d, --dir', help='-d = subfoldername, will create project files there', dest='dir', default='./')
-parser.add_argument('-a, --all', help='Create inputs for basic and polarized fodft', dest='all', action="store_true")
+parser.add_argument('-f, --full', help='Create inputs for basic and polarized fodft', dest='full', action="store_true")
 parser.add_argument('-c, --cubes', help="Automatically adds cube output command for guessed states", dest="cubes", action="store_true")
+parser.add_argument('-a, --automagic', help="Tries to find fragments by a k-means clustering algorithm. Check the result carefully!", dest="magic", action="store_true")
 
 # additional, optinal arguments for the fodft-class
 #parser.add_argument('-
@@ -20,28 +22,20 @@ arguments = parser.parse_args()
 
 filename = arguments.filename
 fformat = arguments.fformat
-system = fo_aims(filename, fformat)
+
+#if len(filename) > 1 and arguments.dir:
+    #print("Using one folder and more than one input doesn't work! Bye!")
+    #sys.exit()
+example = fo_aims(Atoms('CO', positions=[(0, 0, 0), (0, 0, 1)]))
 
 arg_dict = {
             "xc" :        ["Which XC functional (Default: blyp): ", "blyp"],
             "charge_in" :    ["Charges on [frag1], [frag2] (Default: +1 0]): ", "+1 0"],
             "embedding" : ["Use embedding? [y/n] (Default: no): ", ".false."],
-            "species" :     ["Specify basis set, available options: \n\n {0} \n\n(Default: tight). Please choose: ".format(system.avail_species.keys()), "tight"],
+            "species" :     ["Specify basis set, available options: \n\n {0} \n\n(Default: tight). Please choose: ".format(example.avail_species.keys()), "tight"],
             "fo_type" :    ["FO_Type, hole or elec (Default: hole): ", "hole"],
             }
 
-if arguments.dir == "./":
-    print("Creating files in current working directory ({0})".format(os.getcwd()))
-else:
-    try:
-        os.mkdir(arguments.dir)
-        os.chdir(arguments.dir)
-        print("Creating files in {0}!".format(arguments.dir))
-    except:
-        print("Error when creating folder {0}:".format(arguments.dir))
-        #traceback.print_exc(file=sys.stdout)
-        raise
-print("Creating basic and embedded input: {0}".format(arguments.all))
 # get params for fodft
 arg_dict_values = deepcopy(arg_dict)
 
@@ -60,35 +54,63 @@ if arg_dict_values['embedding'][1] == "y":
 elif arg_dict_values['embedding'][1] == "n":
     arg_dict_values['embedding'][1] = ".false."
 
-# Set the values. 
-system.aims_params['xc'] = arg_dict_values['xc'][1]
-system.charge_in = arg_dict_values['charge_in'][1].strip("[]").split()
-system.embedding = arg_dict_values['embedding'][1]
-system.species = arg_dict_values['species'][1]
-system.fo_type = arg_dict_values['fo_type'][1]
+for file in filename:
+    system = fo_aims(file, fformat)
 
-print("Got all information, now create the fragments!")
-system.create_fragments()
+    if len(filename) > 1:
+        dirname = file.rpartition(".")[0]
+        if dirname == filename:
+            dirname = "fo" + dirname
+        arguments.dir = dirname
 
-if arguments.cubes is True:
-    system.set_cube_files()
-    
-if arguments.all is True:
-    print("Now creating input files for basic fo_dft...")
+    if arguments.dir == "./":
+        print("Creating files in current working directory ({0})".format(os.getcwd()))
+    else:
+        try:
+            cwd = os.getcwd()
+            os.mkdir(arguments.dir)
+            os.chdir(arguments.dir)
+            print("Creating files in {0}!".format(arguments.dir))
+        except:
+            print("Error when creating folder {0}:".format(arguments.dir))
+            raise
 
-    os.mkdir("basic")
-    os.mkdir("embedded")
+    print("Creating basic and embedded input: {0}".format(arguments.full))
 
-    cwd = os.getcwd()
-    os.chdir("basic")
-    #print("Now creating the input files!")
-    system.write_inputs()
+    # Set the values. 
+    system.aims_params['xc'] = arg_dict_values['xc'][1]
+    system.charge_in = arg_dict_values['charge_in'][1].strip("[]").split()
+    system.embedding = arg_dict_values['embedding'][1]
+    system.species = arg_dict_values['species'][1]
+    system.fo_type = arg_dict_values['fo_type'][1]
+
+    print("Got all information, now create the fragments!")
+    if arguments.magic is True:
+        system.magic_fragmentation()
+    else:
+        system.create_fragments()
+
+    if arguments.cubes is True:
+        system.set_cube_files()
+        
+    if arguments.full is True:
+        print("Now creating input files for basic fo_dft...")
+
+        os.mkdir("basic")
+        os.mkdir("embedded")
+
+        cwd = os.getcwd()
+        os.chdir("basic")
+        #print("Now creating the input files!")
+        system.write_inputs()
+        os.chdir(cwd)
+        os.chdir("embedded")
+        print("Now creating input files for embedded fo_dft...")
+        system.embedding = ".true."
+        system.update_calculators()
+        system.write_inputs()
+    else:
+        print("Now creating the input files!")
+        system.write_inputs()
+    print("Done.")
     os.chdir(cwd)
-    os.chdir("embedded")
-    print("Now creating input files for embedded fo_dft...")
-    system.embedding = ".true."
-    system.write_inputs()
-else:
-    print("Now creating the input files!")
-    system.write_inputs()
-print("Done.")

@@ -8,7 +8,10 @@ import ase
 from ase.io import read,write
 from ase.calculators.aims import Aims
 from ase.atoms import atomic_numbers
-from ase.calculators.cpmd import CPMD
+
+from scipy.cluster.vq import kmeans,vq # used for the automagic clustering
+
+#from ase.calculators.cpmd import CPMD
 
 # global parameters
 spec_path = "/data/schober/code/fhiaims_develop/fhiaims_supporting_work/species_defaults/"
@@ -63,15 +66,49 @@ class fodft:
         self.frag2.edit()
         print("Fragments created.")
 
-        check = (self.frag1 + self.frag2).get_chemical_formula() == self.dimer.get_chemical_formula()
-        if check is True:
-            print("Created dimers, checked consistency.")
-        else:
-            print("ERROR: Number of atoms of frag1 + frag2 is not the same as dimer! Please create fragments again!") 
-            self.create_fragments()
+        self.__check_fragments__()
 
         self.__set_charges__()
         self.__get_frontiers__()
+
+    def magic_fragmentation(self):
+        """ This function takes the atom objects and tries to separate two fragments by a k-means-clustering algorithm. Always check the result before relying on those fragmentations!"""
+
+        #hardcoded number of fragments, for now always 2!
+        nr_frags = 2
+        coordinates = self.dimer.get_positions()
+        # 
+        centroids,_ = kmeans(coordinates, nr_frags)
+        # assign indices to clusters (bitmask!)
+        cluster_indices,_ = vq(coordinates, centroids)
+        # compress the whole coordinates to fragments 
+        #coords_frag1 = np.array(list(itertools.compress(coordinates.tolist(), cluster_indices)))
+        # invert the bitmask
+        #cluster_indices = cluster_indices ^ 1
+        #coords_frag2 = np.array(list(itertools.compress(coordinates.tolist(), cluster_indices)))
+
+        self.frag1 = deepcopy(self.dimer)
+        self.frag2 = deepcopy(self.dimer)
+
+        # Now delete the atoms of the other fragment from the object with mighty pythonic list comprehensions!
+        del self.frag1[[atom.index for pos, atom in enumerate(self.frag1) if cluster_indices[pos] == 0]]
+        del self.frag2[[atom.index for pos, atom in enumerate(self.frag2) if cluster_indices[pos] == 1]]
+
+        print("Finished automatic fragmentation, please remember to check the result!")
+        self.__check_fragments__() 
+
+        self.__set_charges__()
+        self.__get_frontiers__()
+
+    def __check_fragments__(self):
+        """ This function contains all checks for the fragmentation process, such as comparing the total number of atoms. """
+
+        check = (self.frag1 + self.frag2).get_chemical_formula() == self.dimer.get_chemical_formula()
+        if check is not True:
+            print("ERROR: Number of atoms of frag1 + frag2 is not the same as dimer! Please create fragments again!")
+            sys.exit()
+        else:
+            print("Created dimers, did a _basic_ check for consistency.") 
 
     def __set_charges__(self):
         """ Sets the charges for fragments and dimer according to the input.
@@ -133,6 +170,10 @@ class fo_aims(fodft):
 
     def create_fragments(self):
         fodft.create_fragments(self)
+        self.update_calculators()
+
+    def magic_fragmentation(self):
+        fodft.magic_fragmentation(self)
         self.update_calculators()
 
     def update_calculators(self):
@@ -339,17 +380,17 @@ class AimsCube:
                 file.write('output cube ' + self.plots[i + 1] + '\n')
                 file.write('cube spinstate 2\n')
 
-class fo_cpmd(fodft):
-    """ Wrapper for old cpmd io/calculator. Need to integrate into this later on..."""
-   
-    def __init__(self, dimer, fformat="xyz", charges=1):
-        fodft.__init__(self, dimer, fformat="xyz")
-
-        self.dimer.calc = CPMD(self.dimer)
-        self.dimer.calc.center(vacuum=4)
-        self.dimer.calc.set(charge=charges)
-
-    def create_fragments(self, fo_files=True):
-        self.dimer.calc.create_fragments(self.dimer, fo_files=True)
+#class fo_cpmd(fodft):
+#    """ Wrapper for old cpmd io/calculator. Need to integrate into this later on..."""
+#   
+#    def __init__(self, dimer, fformat="xyz", charges=1):
+#        fodft.__init__(self, dimer, fformat="xyz")
+#
+#        self.dimer.calc = CPMD(self.dimer)
+#        self.dimer.calc.center(vacuum=4)
+#        self.dimer.calc.set(charge=charges)
+#
+#    def create_fragments(self, fo_files=True):
+#        self.dimer.calc.create_fragments(self.dimer, fo_files=True)
 
 

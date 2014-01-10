@@ -9,7 +9,8 @@ from ase.io import read,write
 from ase.calculators.aims import Aims
 from ase.atoms import atomic_numbers
 
-from scipy.cluster.vq import kmeans,vq # used for the automagic clustering
+#from scipy.cluster.vq import kmeans,vq # used for the automagic clustering
+from scipy.cluster.hierarchy import fclusterdata # used for the automagic clustering, better algorithm than scipy.cluster.vq
 
 #from ase.calculators.cpmd import CPMD
 
@@ -40,6 +41,7 @@ class fodft:
         self.fo_type = "hole"
         self.frontiers = [1, 1]
         self.fo_range = [2, 2]
+        self.magic_cutoff = 1.7 # default for c-c bond distance
         try:
             dimer.get_name()
             self.dimer = dimer
@@ -78,9 +80,9 @@ class fodft:
         nr_frags = 2
         coordinates = self.dimer.get_positions()
         # 
-        centroids,_ = kmeans(coordinates, nr_frags)
+        #centroids,_ = kmeans(coordinates, nr_frags)
         # assign indices to clusters (bitmask!)
-        cluster_indices,_ = vq(coordinates, centroids)
+        cluster_indices = fclusterdata(coordinates, self.magic_cutoff, criterion="distance")
         # compress the whole coordinates to fragments 
         #coords_frag1 = np.array(list(itertools.compress(coordinates.tolist(), cluster_indices)))
         # invert the bitmask
@@ -91,8 +93,8 @@ class fodft:
         self.frag2 = deepcopy(self.dimer)
 
         # Now delete the atoms of the other fragment from the object with mighty pythonic list comprehensions!
-        del self.frag1[[atom.index for pos, atom in enumerate(self.frag1) if cluster_indices[pos] == 0]]
-        del self.frag2[[atom.index for pos, atom in enumerate(self.frag2) if cluster_indices[pos] == 1]]
+        del self.frag1[[atom.index for pos, atom in enumerate(self.frag1) if cluster_indices[pos] != 1]]
+        del self.frag2[[atom.index for pos, atom in enumerate(self.frag2) if cluster_indices[pos] != 2]]
 
         print("Finished automatic fragmentation, please remember to check the result!")
         self.__check_fragments__() 
@@ -102,6 +104,7 @@ class fodft:
 
     def __check_fragments__(self):
         """ This function contains all checks for the fragmentation process, such as comparing the total number of atoms. """
+        print("Chemical formula for fragment1 and fragment2: {0} | {1}".format(self.frag1.get_chemical_formula(), self.frag2.get_chemical_formula()))
 
         check = (self.frag1 + self.frag2).get_chemical_formula() == self.dimer.get_chemical_formula()
         if check is not True:
@@ -129,8 +132,8 @@ class fodft:
 
     def __get_frontiers__(self):
         """ Extracts the HOMOs for both fragments in their _neutral_ state to be used for determination of the orbitals of interest.""" 
-        self.frontiers[0] = self.frag1.get_atomic_numbers().sum()
-        self.frontiers[1] = self.frag2.get_atomic_numbers().sum()
+        self.frontiers[0] = self.frag1.get_atomic_numbers().sum()/2
+        self.frontiers[1] = self.frag2.get_atomic_numbers().sum()/2
 
     def __get_initial_moments__(self):
         """ Calculates initial moments from number of electrons and charge. Only works for low spin systems! ALWAYS check before submitting! """
@@ -199,19 +202,19 @@ class fo_aims(fodft):
         self.dimer.calc.set(default_initial_moment=self.initial_moments[2], 
                          fo_dft="final", 
                          charge=self.charges['fo'],
-                         fo_orbitals="{0} {1} {2} {3} {4}".format(self.frontiers[0]/2, self.frontiers[1]/2, self.fo_range[0], self.fo_range[1], self.fo_type),
+                         fo_orbitals="{0} {1} {2} {3} {4}".format(self.frontiers[0], self.frontiers[1], self.fo_range[0], self.fo_range[1], self.fo_type),
                          packed_matrix_format="none")
 
     def set_cube_files(self):
         """ Method to create cube file input for each fragment """
         
         # its done for both fragments each, might be able to do this nicer..    
-        states = range(self.frontiers[0]/2, self.frontiers[0]/2 + self.fo_range[0])
+        states = range(self.frontiers[0], self.frontiers[0] + self.fo_range[0])
         plots = ["eigenstate {0}".format(x) for x in states]
         cube1 = AimsCube(plots)
         self.frag1.calc.cubes = cube1
 
-        states = range(self.frontiers[1]/2, self.frontiers[1]/2 + self.fo_range[1])
+        states = range(self.frontiers[1], self.frontiers[1] + self.fo_range[1])
         plots = ["eigenstate {0}".format(x) for x in states]
         cube2 = AimsCube(plots)
         self.frag2.calc.cubes = cube2

@@ -52,7 +52,7 @@ class fodft:
         """ Read the dimer file with a given file format and call create_fragments after that. """
         
         try:
-            self.dimer = read(filename, format=fformat)
+            self.dimer = read(filename, format=fformat)#, index=None)
         except:
             print("ERROR: The file {0} was not found or the format {1} not known!".format(filename, fformat))
 

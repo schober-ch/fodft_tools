@@ -58,7 +58,14 @@ os.mkdir("dimers")
 os.chdir("dimers")
 
 print(central_fragment)
+f = open("center_of_masses.data", w)
+
 for i in [x for x in range(args.number_of_molecules) if x != central_fragment]:
     com_dist = numpy.linalg.norm(frags[central_fragment].get_center_of_mass() - frags[i].get_center_of_mass())
     #n_dist = cdist(frags[central_fragment].get_positions(), frags[i].get_positions())
     write("dimer_{0}_{1}_d-{2}A.xyz".format(central_fragment, i, round(com_dist,2)), (frags[central_fragment]+frags[i]), format="xyz")
+    f.write("COM Central {0}: {1}".format(central_fragment, frags[central_fragment].get_center_of_mass()))
+    f.write("dimer_{0}_{1}_d-{2}A.xyz".format(central_fragment, i, round(com_dist,2)), (frags[central_fragment]+frags[i]))
+    f.write("COM Fragment {0}: {1}".format(i, frags[i].get_center_of_mass()))
+
+f.close()

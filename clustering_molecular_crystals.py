@@ -15,7 +15,7 @@ parser.add_argument('filename', help='XYZ-File (only full molecules in file, no 
 parser.add_argument('-d, --cutoff', help='Cutoff-Distance for the clustering algorithm (larger than minimal atomic distance but smaller than molecule-molecule distance', dest='cutoff', default=1.7, type=float)
 parser.add_argument('-n, --number', dest='number_of_molecules', help='Number of molecules in the supercell', type=int)
 parser.add_argument('-c, --central', dest='central_atom', help='Atomic number of a random atom from the central molecule (the one for the neighbour-pairs!', type=int)
-
+parser.add_argument('--com_cutoff', dest='com_cutoff', help='Distance in A for which dimers are generated (based on center of mass, so chain-like molecules will be harder in chain-direction)', default=1000, type=float)
 args = parser.parse_args()
 
 supercell = read(args.filename, format="xyz")
@@ -58,14 +58,17 @@ os.mkdir("dimers")
 os.chdir("dimers")
 
 print(central_fragment)
-f = open("center_of_masses.data", w)
+f = open("center_of_masses.data", "w")
 
 for i in [x for x in range(args.number_of_molecules) if x != central_fragment]:
     com_dist = numpy.linalg.norm(frags[central_fragment].get_center_of_mass() - frags[i].get_center_of_mass())
+    print(float(com_dist))
+    print(float(args.com_cutoff))
+    if float(com_dist) < float(args.com_cutoff):
     #n_dist = cdist(frags[central_fragment].get_positions(), frags[i].get_positions())
-    write("dimer_{0}_{1}_d-{2}A.xyz".format(central_fragment, i, round(com_dist,2)), (frags[central_fragment]+frags[i]), format="xyz")
-    f.write("COM Central {0}: {1}".format(central_fragment, frags[central_fragment].get_center_of_mass()))
-    f.write("dimer_{0}_{1}_d-{2}A.xyz".format(central_fragment, i, round(com_dist,2)), (frags[central_fragment]+frags[i]))
-    f.write("COM Fragment {0}: {1}".format(i, frags[i].get_center_of_mass()))
-
+        write("dimer_{0}_{1}_d-{2}A.xyz".format(central_fragment, i, round(com_dist,2)), (frags[central_fragment]+frags[i]), format="xyz")
+        f.write("COM Central ;{0}; {1}; COM Molec; {2}; {3}; {4}; {5}; Distance; {6}\n".format(central_fragment, frags[central_fragment].get_center_of_mass(), i, frags[i].get_center_of_mass()[0], frags[i].get_center_of_mass()[1], frags[i].get_center_of_mass()[2], round(com_dist,2)))
+    #f.write("dimer_{0}_{1}_d-{2}A.xyz".format(central_fragment, i, round(com_dist,2)), (frags[central_fragment]+frags[i]))
+    #f.write("COM Fragment {0}: {1}".format(i, frags[i].get_center_of_mass()))
+    
 f.close()

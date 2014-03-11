@@ -16,7 +16,7 @@ parser.add_argument('-c, --cubes', help="Automatically adds cube output command 
 parser.add_argument('-a, --automagic', help="Tries to find fragments by a clustering algorithm. Check the result carefully! See also:--cutoff", dest="magic", action="store_true")
 parser.add_argument('--cutoff', help="Optional: Defines the cutoff for the clustering algorithm. Works best with values larger than inter-molecular distances and smaller than inter-molecular distances! Default is 1.7 for C-C-bonds!", dest="cutoff", type=float) 
 parser.add_argument('-o, --orbitals', help="FO-Orbitals for determination of matrix elements (form: state1 state2 range1 range2)", dest="orbitals", nargs='+', type=int)
-
+parser.add_argument('-i, --image', help="If more than one geometry in .xyz (e.g. a trajectory), which image to choose? Default: Last structure", type=int, dest="image", default=0)
 # additional, optinal arguments for the fodft-class
 #parser.add_argument('-
 
@@ -56,7 +56,7 @@ elif arg_dict_values['embedding'][1] == "n":
     arg_dict_values['embedding'][1] = ".false."
 
 for file in filename:
-    system = fo_aims(file, fformat)
+    system = fo_aims(file, fformat, w_image=arguments.image-1)
 
     if len(filename) > 1:
         dirname = file.rpartition(".")[0]

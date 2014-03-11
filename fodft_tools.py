@@ -28,7 +28,7 @@ avail_species = {"light" : "light",
 class fodft:
     """ Functionality for fragment orbital dft calculations. This class collects all the methods necessary for FODFT calculations, regardless of the used QM program. """
 
-    def __init__(self, dimer, fformat="xyz"):
+    def __init__(self, dimer, fformat="xyz", w_image):
         # Atom objects
         self.dimer = None
         self.frag1 = None
@@ -46,13 +46,13 @@ class fodft:
             dimer.get_name()
             self.dimer = dimer
         except:
-            self.read_dimer(dimer, fformat)
+            self.read_dimer(dimer, fformat, w_image)
 
-    def read_dimer(self, filename, fformat):
+    def read_dimer(self, filename, fformat, w_image):
         """ Read the dimer file with a given file format and call create_fragments after that. """
         
         try:
-            self.dimer = read(filename, format=fformat)#, index=None)
+            self.dimer = read(filename, format=fformat, index=w_image)
         except:
             print("ERROR: The file {0} was not found or the format {1} not known!".format(filename, fformat))
 
@@ -147,8 +147,8 @@ class fodft:
 class fo_aims(fodft):
     """ Class for fragment orbital dft calculations with FHI_aims. """
         
-    def __init__(self, dimer, fformat="xyz"):
-        fodft.__init__(self, dimer, fformat)
+    def __init__(self, dimer, fformat="xyz", w_image):
+        fodft.__init__(self, dimer, fformat, w_image)
         
         self.avail_species = avail_species 
         self.species = "tight"

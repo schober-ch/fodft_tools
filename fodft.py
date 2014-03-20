@@ -28,7 +28,7 @@ fformat = arguments.fformat
 #if len(filename) > 1 and arguments.dir:
     #print("Using one folder and more than one input doesn't work! Bye!")
     #sys.exit()
-example = fo_aims(Atoms('CO', positions=[(0, 0, 0), (0, 0, 1)]))
+example = fo_aims(Atoms('CO', positions=[(0, 0, 0), (0, 0, 1)]), arguments.image-1)
 arg_dict = {
             "xc" :        ["Which XC functional (Default: blyp): ", "blyp"],
             "charge_in" :    ["Charges on [frag1], [frag2] (Default: +1 0]): ", "+1 0"],
@@ -56,7 +56,7 @@ elif arg_dict_values['embedding'][1] == "n":
     arg_dict_values['embedding'][1] = ".false."
 
 for file in filename:
-    system = fo_aims(file, fformat, w_image=arguments.image-1)
+    system = fo_aims(file, arguments.image-1, fformat)
 
     if len(filename) > 1:
         dirname = file.rpartition(".")[0]

@@ -15,4 +15,4 @@ for num, i in enumerate(dist):
 
 
 for item in molecules.iteritems():
-    write("geometry.in-{0}".format(item[0], item[1], format="aims")
+    write("geometry.in-{0}".format(item[0]), item[1], format="aims")

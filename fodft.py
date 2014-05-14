@@ -6,6 +6,35 @@ import os
 import sys, traceback
 from ase import Atoms
 
+spec_path = "/data/schober/code/fhiaims_develop/fhiaims_supporting_work/species_defaults/"
+
+aims_params = {
+            "xc"     : "blyp",
+            "spin"  : "collinear",
+            "occupation_type"   : "gaussian 0.01",
+            "mixer"     : "pulay",
+            "n_max_pulay"   : "10",
+            "charge_mix_param" : "0.5",
+            "sc_accuracy_rho"   : "1E-4",
+            "sc_accuracy_eev"   : "1E-2",
+            "sc_accuracy_etot"  : "1E-6",
+            "relativistic"  : "none",
+            "species_dir" : "",
+            #"species_dir" : os.path.join(self.spec_path, self.avail_species[self.species])
+            }
+
+# global parameters
+#spec_path = "/data/schober/code/fhiaims_develop/fhiaims_supporting_work/species_defaults/"
+
+avail_species = {"light" : "light",
+                 "tight" : "tight",
+                 "cc.3"  : "non-standard/NAO-VCC-nZ/NAO-VCC-3Z",
+                 "cc.4"  : "non-standard/NAO-VCC-nZ/NAO-VCC-4Z",
+                 "cc.5"  : "non-standard/NAO-VCC-nZ/NAO-VCC-5Z",
+                 "tight.ext" : "tight.ext",
+                 "cc.3.ext"  : "non-standard/NAO-VCC-nZ/NAO-VCC-3Z.ext"
+                 }
+
 parser = argparse.ArgumentParser(description="Get parameters for fodft")
 
 parser.add_argument('filename', nargs='+', help='Geometry file with the dimer or a list(blob)')#, dest='filename')
@@ -28,12 +57,13 @@ fformat = arguments.fformat
 #if len(filename) > 1 and arguments.dir:
     #print("Using one folder and more than one input doesn't work! Bye!")
     #sys.exit()
-example = fo_aims(Atoms('CO', positions=[(0, 0, 0), (0, 0, 1)]), arguments.image-1)
+#example = fo_aims(Atoms('CO', positions=[(0, 0, 0), (0, 0, 1)]), arguments.image-1)
+#example.avail_species = avail_species
 arg_dict = {
             "xc" :        ["Which XC functional (Default: blyp): ", "blyp"],
             "charge_in" :    ["Charges on [frag1], [frag2] (Default: +1 0]): ", "+1 0"],
             "embedding" : ["Use embedding? [y/n] (Default: no): ", ".false."],
-            "species" :     ["Specify basis set, available options: \n\n {0} \n\n(Default: tight). Please choose: ".format(example.avail_species.keys()), "tight"],
+            "species" :     ["Specify basis set, available options: \n\n {0} \n\n(Default: tight). Please choose: ".format(avail_species.keys()), "tight"],
             "fo_type" :    ["FO_Type, hole or elec (Default: hole): ", "hole"],
             }
 
@@ -57,6 +87,10 @@ elif arg_dict_values['embedding'][1] == "n":
 
 for file in filename:
     system = fo_aims(file, arguments.image-1, fformat)
+    system.spec_path = spec_path
+    system.avail_species = avail_species
+    system.aims_params = aims_params
+    system.aims_params["species_dir"] = os.path.join(system.spec_path, system.avail_species[arg_dict_values["species"][1]]) 
 
     if len(filename) > 1:
         dirname = file.rpartition(".")[0]
@@ -123,4 +157,7 @@ for file in filename:
         print("Now creating the input files!")
         system.write_inputs()
     print("Done.")
-    os.chdir(cwd_start)
+    try:
+        os.chdir(cwd_start)
+    except:
+        pass

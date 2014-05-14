@@ -15,15 +15,16 @@ from scipy.cluster.hierarchy import fclusterdata # used for the automagic cluste
 #from ase.calculators.cpmd import CPMD
 
 # global parameters
-spec_path = "/data/schober/code/fhiaims_develop/fhiaims_supporting_work/species_defaults/"
-avail_species = {"light" : "light",
-                 "tight" : "tight",
-                 "cc.3"  : "non-standard/NAO-VCC-nZ/NAO-VCC-3Z",
-                 "cc.4"  : "non-standard/NAO-VCC-nZ/NAO-VCC-4Z",
-                 "cc.4"  : "non-standard/NAO-VCC-nZ/NAO-VCC-5Z",
-                 "tight.ext" : "tight.ext",
-                 "cc.3.ext"  : "non-standard/NAO-VCC-nZ/NAO-VCC-3Z.ext"
-                 }
+#spec_path = "/data/schober/mader/species_defaults/"
+#spec_path = "/data/schober/code/fhiaims_develop/fhiaims_supporting_work/species_defaults/"
+#avail_species = {"light" : "light",
+                 #"tight" : "tight",
+                 #"cc.3"  : "non-standard/NAO-VCC-nZ/NAO-VCC-3Z",
+                 #"cc.4"  : "non-standard/NAO-VCC-nZ/NAO-VCC-4Z",
+                 #"cc.4"  : "non-standard/NAO-VCC-nZ/NAO-VCC-5Z",
+                 #"tight.ext" : "tight.ext",
+                 #"cc.3.ext"  : "non-standard/NAO-VCC-nZ/NAO-VCC-3Z.ext"
+                 #}
 
 class fodft:
     """ Functionality for fragment orbital dft calculations. This class collects all the methods necessary for FODFT calculations, regardless of the used QM program. """
@@ -34,6 +35,7 @@ class fodft:
         self.frag1 = None
         self.frag2 = None
 
+        self.image = w_image
         # General FO-DFT parameters
         self.charge_in = [0, 0]
         self.charges = {"frag1": 0, "frag2": 0, "fo":0}
@@ -149,25 +151,28 @@ class fo_aims(fodft):
         
     def __init__(self, dimer, w_image, fformat="xyz"):
         fodft.__init__(self, dimer, w_image, fformat)
-        
-        self.avail_species = avail_species 
+       
+        self.spec_path = ""
+        self.avail_species = {}
+        #self.avail_species = avail_species 
         self.species = "tight"
         self.embedding = ".false."
 
         # Aims standard-params
-        self.aims_params = {
-                    "xc"     : "blyp",
-                    "spin"  : "collinear",
-                    "occupation_type"   : "gaussian 0.01",
-                    "mixer"     : "pulay",
-                    "n_max_pulay"   : "10",
-                    "charge_mix_param" : "0.5",
-                    "sc_accuracy_rho"   : "1E-4",
-                    "sc_accuracy_eev"   : "1E-2",
-                    "sc_accuracy_etot"  : "1E-6",
-                    "relativistic"  : "none",
-                    "species_dir" : os.path.join(spec_path, avail_species[self.species])
-                    }
+        self.aims_params = {}
+#        self.aims_params = {
+#                    "xc"     : "blyp",
+#                    "spin"  : "collinear",
+#                    "occupation_type"   : "gaussian 0.01",
+#                    "mixer"     : "pulay",
+#                    "n_max_pulay"   : "10",
+#                    "charge_mix_param" : "0.5",
+#                    "sc_accuracy_rho"   : "1E-4",
+#                    "sc_accuracy_eev"   : "1E-2",
+#                    "sc_accuracy_etot"  : "1E-6",
+#                    "relativistic"  : "none",
+#                    "species_dir" : os.path.join(self.spec_path, self.avail_species[self.species])
+#                    }
            # add a calculator
         #self.update_calculators()
 
@@ -182,7 +187,7 @@ class fo_aims(fodft):
     def update_calculators(self):
         self.__set_charges__()
 
-        self.aims_params['species_dir'] = os.path.join(spec_path, avail_species[self.species])
+        self.aims_params['species_dir'] = os.path.join(self.spec_path, self.avail_species[self.species])
         self.dimer.set_calculator(Aims(**self.aims_params))
         self.frag1.set_calculator(Aims(**self.aims_params))
         self.frag2.set_calculator(Aims(**self.aims_params))
@@ -200,7 +205,7 @@ class fo_aims(fodft):
                             charge=self.charges['frag2'])
 
         self.dimer.calc.set(default_initial_moment=self.initial_moments[2], 
-                         fo_dft="final", 
+                         fo_dft="final",
                          charge=self.charges['fo'],
                          fo_orbitals="{0} {1} {2} {3} {4}".format(self.frontiers[0], self.frontiers[1], self.fo_range[0], self.fo_range[1], self.fo_type),
                          packed_matrix_format="none")
@@ -250,6 +255,13 @@ class fo_aims(fodft):
         self.dimer.calc.write_control(self.dimer, "control.in")
         self.dimer.calc.write_species(self.dimer, "control.in")
         write("geometry.in", self.frag1+self.frag2, format="aims")
+
+    def write_geom_only(self):
+        """ Method to write geometry files for different distances."""
+        import numpy as np
+
+        #dist = np.linalg.norm(self.frag1[0].position-self.frag2[0].position)
+        write("geometry.in_{0}".format(self.image), self.frag1+self.frag2, format="aims")
 
     # this is the write_aims from ASE
     def __write_aims_empty__(self, filename, atoms):

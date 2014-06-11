@@ -3,11 +3,15 @@
 from scipy.cluster.hierarchy import fclusterdata
 from scipy.spatial.distance import cdist
 from scipy.spatial import KDTree
+from scipy.spatial import ConvexHull, convex_hull_plot_2d
 from copy import deepcopy
 import argparse
 from ase.io import read, write
+from ase.visualize import view
 import sys, os
 import numpy
+import scipy
+from sklearn.cluster import DBSCAN
 
 parser = argparse.ArgumentParser(description="Get parameters to generate neighbour-pairs for molecular crystal xyz")
 
@@ -17,6 +21,7 @@ parser.add_argument('-d, --cutoff', help='Cutoff-Distance for the clustering alg
 parser.add_argument('-m, --multiplicator', dest='multiplicator', help='Multiplicator to create supercell from initial cif file. Number depends on the number of unit cells necessary for a full nearest neighbour shell. Script determines largest unit cell vector and tries to adjust the other ratios to generate a cube-like shape. List of 3 ints: 1 1 1. Default: 0', nargs="+", type=int)
 parser.add_argument('-c, --central', dest='central_atom', help='Atomic number of a random atom from the central molecule (the one for the neighbour-pairs!', type=int)
 parser.add_argument('--com_cutoff', dest='com_cutoff', help='Distance in A for which dimers are generated (based on center of mass, so chain-like molecules will be harder in chain-direction)', default=1000, type=float)
+parser.add_argument('--dry', dest='dryrun', help='If choose, only the steps prior to the fragmentation are done and the resulting supercell is shown.', action="store_true")
 
 # parse arguments
 args = parser.parse_args()
@@ -41,6 +46,11 @@ full_mult = numpy.array(mult_array) + numpy.array(args.multiplicator)
 print(full_mult)
 
 supercell = supercell*full_mult
+
+if args.dryrun is True:
+    view(supercell)
+    sys.exit()
+
 coordinates = supercell.get_positions()
 
 with open(args.filename, "r") as f:
@@ -50,9 +60,12 @@ for line in cif:
     if "_chemical_formula_sum" in line:
         chem_sum = line.split("_sum")[1].strip().replace(" ", "").strip("'")
 
-clustervector = fclusterdata(coordinates, args.cutoff, criterion="distance")
+print("Clustering step started...")
+#clustervector = fclusterdata(coordinates, args.cutoff, criterion="distance")
+db = DBSCAN(eps=args.cutoff, min_samples=1).fit(coordinates)
+clustervector = db.labels_.astype(int)
 
-
+print("Clustering step finished...")
 
 #print("Number of atoms in each fragment:")
 #for i in range(args.number_of_molecules):
@@ -75,8 +88,6 @@ clean_supercell = final_frags[0]
 for i in range(len(final_frags)-1):
     clean_supercell = clean_supercell + final_frags[i+1]
 
-write("clean_supercell.xyz", clean_supercell, format="xyz")    
-
 kdt = KDTree(clean_supercell.get_positions())
 nearest = kdt.query(clean_supercell.get_center_of_mass())
 pos = clean_supercell[nearest[1]].position
@@ -91,22 +102,54 @@ for n, i in enumerate(final_frags):
 os.mkdir("dimers")
 os.chdir("dimers")
 
+write("clean_supercell.xyz", clean_supercell, format="xyz")    
 print(central_fragment)
 
 # crude way to get nearest neighbour shells easier for chain-like molecules - extrapolate by cubic cell vectors
 
-central_fragment.center(vacuum=1)
-cuboid = central_fragment.get_cell()
+#central_fragment.center(vacuum=1)
+#cuboid = central_fragment.get_cell()
+#
+## try to use a convex hull algorithm to get nearest neighbour shell
+#central_coords = central_fragment.get_positions()
+#convex_hull = ConvexHull(central_coords)
+#hull_points = central_coords[convex_hull.vertices]
+
+#temporary fixed scaling factor - give user possibility to change that
+#scaled_hull = hull_points*5
+
+neighbour_frags = []
+search_frags = deepcopy(final_frags)
+search_frags.pop(central_fragment)
+
+for fragment in search_frags:
+    dist = scipy.spatial.distance.cdist(final_frags[central_fragment].get_positions(), fragment.get_positions())
+
+    neighbours = {}
+    for num, pairs in enumerate(dist):
+        if pairs.min() < float(args.com_cutoff):
+            neighbours[num] = True
+        else:
+            neighbours[num] = False
+
+    if any(x is True for x in neighbours.itervalues()):
+        neighbour_frags.append(fragment)
+
+neighbour_supercell = final_frags[central_fragment]
+for i in range(len(neighbour_frags)):
+    neighbour_supercell = neighbour_supercell + neighbour_frags[i]
+
+write("neighbour_supercell.xyz", neighbour_supercell, format="xyz")
 
 
 f = open("center_of_masses.data", "w")
 
-for i in [x for x in range(len(final_frags)) if x != central_fragment]:
-    com_dist = numpy.linalg.norm(final_frags[central_fragment].get_center_of_mass() - final_frags[i].get_center_of_mass())
-    if float(com_dist) < float(args.com_cutoff):
-        write("dimer_{0}_{1}_d-{2}A.xyz".format(central_fragment, i, round(com_dist,2)), (final_frags[central_fragment]+final_frags[i]), format="xyz")
-        f.write("COM Central ;{0}; {1}; COM Molec; {2}; {3}; {4}; {5}; Distance; {6}\n".format(central_fragment, final_frags[central_fragment].get_center_of_mass(), i, final_frags[i].get_center_of_mass()[0], final_frags[i].get_center_of_mass()[1], final_frags[i].get_center_of_mass()[2], round(com_dist,2)))
-    #f.write("dimer_{0}_{1}_d-{2}A.xyz".format(central_fragment, i, round(com_dist,2)), (final_frags[central_fragment]+final_frags[i]))
+for i in range(len(neighbour_frags)):
+    com_dist = numpy.linalg.norm(final_frags[central_fragment].get_center_of_mass() - neighbour_frags[i].get_center_of_mass())
+    #if float(com_dist) < float(args.com_cutoff):
+    write("dimer_{0}_{1}_d-{2}A.xyz".format(central_fragment, i, round(com_dist,2)), (final_frags[central_fragment]+neighbour_frags[i]), format="xyz")
+    f.write("COM Central ;{0}; {1}; COM Molec; {2}; {3}; {4}; {5}; Distance; {6}\n".format(central_fragment, final_frags[central_fragment].get_center_of_mass(), i, neighbour_frags[i].get_center_of_mass()[0], neighbour_frags[i].get_center_of_mass()[1], neighbour_frags[i].get_center_of_mass()[2], round(com_dist,2)))
+    #f.write("dimer_{0}_{1}_d-{2}A.xyz".format(central_fragment, i, round(com_dist,2)), (neighbour_frags[central_fragment]+neighbour_frags[i]))
     #f.write("COM Fragment {0}: {1}".format(i, final_frags[i].get_center_of_mass()))
     
 f.close()
